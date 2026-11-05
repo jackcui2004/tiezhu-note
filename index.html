@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>铁柱笔记 · 小说下载</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f6f6f4; color: #222; padding: 20px 16px 60px; max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 12px 0 4px; }
+  .sub { color: #888; font-size: 13px; margin-bottom: 24px; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  input[type=url] { width: 100%; padding: 12px; font-size: 15px; border: 1.5px solid #ddd; border-radius: 8px; outline: none; }
+  input[type=url]:focus { border-color: #222; }
+  button { width: 100%; margin-top: 12px; padding: 13px; font-size: 16px; font-weight: 600; color: #fff; background: #222; border: none; border-radius: 8px; cursor: pointer; }
+  button:disabled { background: #aaa; cursor: wait; }
+  #status { margin-top: 12px; font-size: 14px; line-height: 1.6; color: #555; white-space: pre-wrap; word-break: break-all; }
+  #status.ok { color: #1a7f37; }
+  #status.err { color: #c0392b; }
+  h2 { font-size: 16px; margin: 4px 0 10px; }
+  .novel { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 0; border-top: 1px solid #eee; }
+  .novel:first-of-type { border-top: none; }
+  .novel a { color: #222; font-weight: 600; text-decoration: none; font-size: 15px; }
+  .novel a:hover { text-decoration: underline; }
+  .meta { color: #888; font-size: 12px; white-space: nowrap; }
+  .hint { font-size: 12px; color: #999; margin-top: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>📚 铁柱笔记 · 小说下载</h1>
+  <p class="sub">番茄小说短篇 · 粘贴分享链接 → 下载全文 txt</p>
+
+  <div class="card">
+    <label for="link">分享链接</label>
+    <input id="link" type="url" placeholder="粘贴 changdunovel.com 的分享链接…" autocomplete="off">
+    <button id="dl">下载全文</button>
+    <div id="status"></div>
+    <p class="hint">几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
+  </div>
+
+  <div class="card">
+    <h2>已存档</h2>
+    <div class="novel"><a href="和好一下_序二十.txt">1 · 和好一下</a><span class="meta">序二十 · 13012 字</span></div>
+    <div class="novel"><a href="未婚夫初恋说我推她下楼，我让她再摔一次_听远声.txt">2 · 未婚夫初恋说我推她下楼，我让她再摔一次</a><span class="meta">听远声 · 12638 字</span></div>
+  </div>
+
+<script>
+// ★ 部署好 Cloudflare Worker 后，把它的地址填到这里，例如：
+// const WORKER_URL = 'https://tiezhu-novel.<你的子域>.workers.dev/';
+const WORKER_URL = '';
+
+const $ = (id) => document.getElementById(id);
+
+function setStatus(msg, cls) {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+function filenameFromHeaders(res, fallback) {
+  const cd = res.headers.get('Content-Disposition') || '';
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+  const m2 = cd.match(/filename="?([^";]+)"?/i);
+  if (m2) return m2[1];
+  return fallback;
+}
+
+$('dl').addEventListener('click', async () => {
+  const link = $('link').value.trim();
+  if (!link) { setStatus('先粘贴一个分享链接。', 'err'); return; }
+  if (!WORKER_URL) { setStatus('中转服务还没配好（WORKER_URL 为空），联系管理员部署 Worker。', 'err'); return; }
+  const btn = $('dl');
+  btn.disabled = true;
+  btn.textContent = '下载中…';
+  setStatus('正在拿全文，请稍等…');
+  try {
+    const res = await fetch(WORKER_URL + '?url=' + encodeURIComponent(link));
+    if (!res.ok) {
+      let msg = '下载失败（' + res.status + '）';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const title = decodeURIComponent(res.headers.get('X-Title') || '');
+    const author = decodeURIComponent(res.headers.get('X-Author') || '');
+    const words = res.headers.get('X-Words') || '';
+    const name = filenameFromHeaders(res, (title || '小说') + (author ? '_' + author : '') + '.txt');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    setStatus(`✅ 已下载：《${title}》 作者：${author}  共 ${words} 字\n文件：${name}`, 'ok');
+  } catch (e) {
+    setStatus('❌ ' + (e.message || '下载失败，请检查链接后重试。'), 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '下载全文';
+  }
+});
+
+$('link').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('dl').click(); });
+</script>
+</body>
+</html>
