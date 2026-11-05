@@ -25,6 +25,21 @@
   .novel a:hover { text-decoration: underline; }
   .meta { color: #888; font-size: 12px; white-space: nowrap; }
   .hint { font-size: 12px; color: #999; margin-top: 12px; line-height: 1.6; }
+  .who-label { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .who-row { display: flex; gap: 16px; margin-bottom: 16px; }
+  .who { text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .who-circle { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; margin: 0 auto 4px; border: 2.5px solid transparent; }
+  .who.sel .who-circle { border-color: #222; }
+  .who-name { font-size: 12px; color: #666; }
+  .who.sel .who-name { color: #222; font-weight: 700; }
+  .hist-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .hist-clear { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; padding: 0; width: auto; margin: 0; }
+  .hist-day { font-size: 13px; font-weight: 700; color: #888; margin: 14px 0 4px; }
+  .hist-item { display: flex; gap: 8px; align-items: flex-start; padding: 9px 0; border-top: 1px solid #eee; }
+  .hist-tag { flex-shrink: 0; font-size: 12px; border-radius: 6px; padding: 2px 8px; font-weight: 600; margin-top: 1px; }
+  .hist-title { font-size: 14px; font-weight: 600; line-height: 1.4; }
+  .hist-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .hist-empty { font-size: 13px; color: #999; padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -32,6 +47,8 @@
   <p class="sub">番茄小说短篇 · 粘贴分享链接 → 下载全文 txt</p>
 
   <div class="card">
+    <div class="who-label">你是谁（点一下选）</div>
+    <div class="who-row" id="whoRow"></div>
     <label for="link">分享链接</label>
     <input id="link" type="url" placeholder="粘贴分享链接，带推荐语也没关系，会自动识别…" autocomplete="off">
     <button id="dl">下载全文</button>
@@ -45,12 +62,88 @@
     <div class="novel"><a href="未婚夫初恋说我推她下楼，我让她再摔一次_听远声.txt">2 · 未婚夫初恋说我推她下楼，我让她再摔一次</a><span class="meta">听远声 · 12638 字</span></div>
   </div>
 
+  <div class="card">
+    <div class="hist-head"><h2>下载记录</h2><button class="hist-clear" id="clearHist">清空</button></div>
+    <div id="hist"></div>
+  </div>
+
 <script>
 // ★ 部署好 Cloudflare Worker 后，把它的地址填到这里，例如：
 // const WORKER_URL = 'https://tiezhu-novel.<你的子域>.workers.dev/';
 const WORKER_URL = 'https://tiezhu-novel.xianmei2022.workers.dev/';
 
 const $ = (id) => document.getElementById(id);
+
+// 四个人，颜色和看板频道标签一致：1 我（紫）2 哈基小咪（绿）3 斌子（灰）4 马一卓（红）
+const PEOPLE = [
+  { name: '我', sub: 'Moonveil', bg: '#E6D9F0', fg: '#5A3D7A' },
+  { name: '哈基小咪', sub: 'Kimi', bg: '#D9E8D9', fg: '#3D6B3D' },
+  { name: '斌子', sub: 'Midnight Vows', bg: '#E2E2E2', fg: '#555555' },
+  { name: '马一卓', sub: 'My Pretty Revenge', bg: '#F0D9D9', fg: '#7A3D3D' },
+];
+let who = +(localStorage.getItem('tz_who') || 0);
+if (who < 0 || who > 3) who = 0;
+
+function renderWho() {
+  $('whoRow').innerHTML = PEOPLE.map((p, i) =>
+    `<div class="who${i === who ? ' sel' : ''}" data-i="${i}">
+      <div class="who-circle" style="background:${i === who ? p.fg : p.bg};color:${i === who ? '#fff' : p.fg}">${i + 1}</div>
+      <div class="who-name">${p.name}</div>
+    </div>`).join('');
+  $('whoRow').querySelectorAll('.who').forEach(el => {
+    el.addEventListener('click', () => {
+      who = +el.dataset.i;
+      localStorage.setItem('tz_who', String(who));
+      renderWho();
+    });
+  });
+}
+
+// 下载记录：存本机浏览器，按天分组
+function loadHist() {
+  try { return JSON.parse(localStorage.getItem('tz_hist') || '[]'); } catch (e) { return []; }
+}
+function saveHist(h) { localStorage.setItem('tz_hist', JSON.stringify(h.slice(0, 200))); }
+function dayKey(ts) { const d = new Date(ts); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function dayLabel(ts) {
+  const d = new Date(ts), now = new Date();
+  if (dayKey(ts) === dayKey(now.getTime())) return '今天';
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  if (dayKey(ts) === dayKey(y.getTime())) return '昨天';
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function renderHist() {
+  const h = loadHist();
+  const box = $('hist');
+  if (!h.length) { box.innerHTML = '<div class="hist-empty">还没有下载记录，下载后会自动记在这里。</div>'; return; }
+  const groups = {};
+  h.forEach(r => { (groups[dayKey(r.ts)] = groups[dayKey(r.ts)] || []).push(r); });
+  const days = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+  box.innerHTML = days.map(k => {
+    const list = groups[k];
+    const items = list.map(r => {
+      const p = PEOPLE[r.who] || PEOPLE[0];
+      const d = new Date(r.ts);
+      const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+      return `<div class="hist-item">
+        <span class="hist-tag" style="background:${p.bg};color:${p.fg}">${escHtml(p.name)}</span>
+        <div><div class="hist-title">《${escHtml(r.t)}》</div>
+        <div class="hist-meta">${escHtml(r.a || '')}${r.a ? ' · ' : ''}${r.w ? r.w + ' 字 · ' : ''}${hh}:${mm}</div></div>
+      </div>`;
+    }).join('');
+    return `<div class="hist-day">${dayLabel(list[0].ts)} · ${list.length} 篇</div>${items}`;
+  }).join('');
+}
+function addHist(r) { const h = loadHist(); h.unshift(r); saveHist(h); renderHist(); }
+
+$('clearHist').addEventListener('click', () => {
+  if (confirm('确定清空下载记录吗？')) { saveHist([]); renderHist(); }
+});
+renderWho();
+renderHist();
 
 function setStatus(msg, cls) {
   const el = $('status');
@@ -102,10 +195,17 @@ $('dl').addEventListener('click', async () => {
       throw new Error(msg);
     }
     const blob = await res.blob();
-    const title = decodeURIComponent(res.headers.get('X-Title') || '');
-    const author = decodeURIComponent(res.headers.get('X-Author') || '');
-    const words = res.headers.get('X-Words') || '';
+    let title = decodeURIComponent(res.headers.get('X-Title') || '');
+    let author = decodeURIComponent(res.headers.get('X-Author') || '');
+    let words = res.headers.get('X-Words') || '';
     const name = filenameFromHeaders(res, (title || '小说') + (author ? '_' + author : '') + '.txt');
+    // 响应头读不到时（比如 Worker 还没更新），从文件名反推书名/作者
+    if (!title || !author) {
+      const base = name.replace(/\.txt$/i, '');
+      const i = base.lastIndexOf('_');
+      if (i > 0) { if (!title) title = base.slice(0, i); if (!author) author = base.slice(i + 1); }
+    }
+    if (!words) { try { words = String((await blob.text()).length); } catch (e) {} }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = name;
@@ -114,6 +214,7 @@ $('dl').addEventListener('click', async () => {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     setStatus(`✅ 已下载：《${title}》 作者：${author}  共 ${words} 字\n文件：${name}`, 'ok');
+    if (title) addHist({ t: title, a: author, w: words, who, ts: Date.now() });
   } catch (e) {
     setStatus('❌ ' + (e.message || '下载失败，请检查链接后重试。'), 'err');
   } finally {
