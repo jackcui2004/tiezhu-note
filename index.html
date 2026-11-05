@@ -15,10 +15,12 @@
   input[type=url]:focus { border-color: #222; }
   button { width: 100%; margin-top: 12px; padding: 13px; font-size: 16px; font-weight: 600; color: #fff; background: #222; border: none; border-radius: 8px; cursor: pointer; }
   button:disabled { background: #aaa; cursor: wait; }
-  .row { display: flex; gap: 10px; margin-top: 12px; }
-  .row button { width: auto; margin-top: 0; }
-  .btn-paste { flex: 1; }
-  .btn-clear { flex: 0 0 auto; padding: 13px 18px; background: #eee; color: #555; }
+  .input-wrap { position: relative; }
+  .input-wrap input { padding-right: 42px; }
+  .input-clear { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; margin: 0; padding: 0; border: none; border-radius: 50%; background: #e8e8e8; color: #777; font-size: 17px; font-weight: 400; line-height: 1; cursor: pointer; display: none; }
+  .input-clear.show { display: block; }
+  .or { text-align: center; color: #999; font-size: 13px; margin: 14px 0 12px; }
+  .btn-paste { background: #2563eb; margin-top: 0; }
   #status { margin-top: 12px; font-size: 14px; line-height: 1.6; color: #555; white-space: pre-wrap; word-break: break-all; }
   #status.ok { color: #1a7f37; }
   #status.err { color: #c0392b; }
@@ -45,14 +47,15 @@
 
   <div class="card">
     <label for="link">分享链接</label>
-    <input id="link" type="url" placeholder="粘贴分享链接，带推荐语也没关系，会自动识别…" autocomplete="off">
-    <div class="row">
-      <button id="paste" class="btn-paste" type="button">📋 粘贴并下载</button>
-      <button id="clear" class="btn-clear" type="button">✕ 清除</button>
+    <div class="input-wrap">
+      <input id="link" type="url" placeholder="粘贴分享链接，带推荐语也没关系，会自动识别…" autocomplete="off">
+      <button id="clear" class="input-clear" type="button" aria-label="清除">×</button>
     </div>
     <button id="dl">下载全文</button>
+    <div class="or">或直接点击粘贴自动下载</div>
+    <button id="paste" class="btn-paste" type="button">📋 粘贴下载</button>
     <div id="status"></div>
-    <p class="hint">直接点「粘贴并下载」就行，不用点输入框，自动读剪贴板开始下载；也可以手动粘贴链接或带链接的一段话，会自动识别。几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
+    <p class="hint">也可以手动粘贴链接或带链接的一段话，会自动识别。几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
   </div>
 
   <div class="card">
@@ -149,14 +152,19 @@ function extractLink(text) {
   return u;
 }
 
+// 输入框里有内容时才显示尾部的 ×
+function toggleClear() { $('clear').classList.toggle('show', !!$('link').value); }
+
 // 粘贴后自动把链接抠出来留在框里，多余的文字去掉
 $('link').addEventListener('input', () => {
   const v = $('link').value;
   const u = extractLink(v);
   if (u && u !== v.trim()) $('link').value = u;
+  toggleClear();
 });
+toggleClear();
 
-// 粘贴键：读剪贴板 → 填进输入框 → 直接开始下载，不用点输入框
+// 粘贴键：直接读系统剪贴板 → 填进输入框 → 立即开始下载，不经过中间选项
 $('paste').addEventListener('click', async () => {
   let text = '';
   try {
@@ -177,6 +185,7 @@ $('paste').addEventListener('click', async () => {
     return;
   }
   $('link').value = link;
+  toggleClear();
   $('dl').click();
 });
 
@@ -184,6 +193,7 @@ $('paste').addEventListener('click', async () => {
 $('clear').addEventListener('click', () => {
   $('link').value = '';
   setStatus('', '');
+  toggleClear();
   $('link').focus();
 });
 
