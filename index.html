@@ -33,10 +33,10 @@
 
   <div class="card">
     <label for="link">分享链接</label>
-    <input id="link" type="url" placeholder="粘贴 changdunovel.com 的分享链接…" autocomplete="off">
+    <input id="link" type="url" placeholder="粘贴分享链接，带推荐语也没关系，会自动识别…" autocomplete="off">
     <button id="dl">下载全文</button>
     <div id="status"></div>
-    <p class="hint">几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
+    <p class="hint">粘贴链接或带链接的一段话都行，会自动识别链接；几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
   </div>
 
   <div class="card">
@@ -67,8 +67,27 @@ function filenameFromHeaders(res, fallback) {
   return fallback;
 }
 
+// 从一段话里自动抠出番茄分享链接（用户常直接粘贴带推荐语的整段文字）
+function extractLink(text) {
+  if (!text) return '';
+  const m = text.match(/https?:\/\/changdunovel\.com\/t\/[A-Za-z0-9_\-]+/i)
+    || text.match(/changdunovel\.com\/t\/[A-Za-z0-9_\-]+/i)
+    || text.match(/https?:\/\/[^\s"'<>]+/);
+  if (!m) return '';
+  let u = m[0];
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u;
+}
+
+// 粘贴后自动把链接抠出来留在框里，多余的文字去掉
+$('link').addEventListener('input', () => {
+  const v = $('link').value;
+  const u = extractLink(v);
+  if (u && u !== v.trim()) $('link').value = u;
+});
+
 $('dl').addEventListener('click', async () => {
-  const link = $('link').value.trim();
+  const link = extractLink($('link').value.trim());
   if (!link) { setStatus('先粘贴一个分享链接。', 'err'); return; }
   if (!WORKER_URL) { setStatus('中转服务还没配好（WORKER_URL 为空），联系管理员部署 Worker。', 'err'); return; }
   const btn = $('dl');
