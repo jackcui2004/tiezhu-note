@@ -32,9 +32,15 @@
   .hist-title { font-size: 14px; font-weight: 600; line-height: 1.4; }
   .hist-meta { font-size: 12px; color: #888; margin-top: 2px; }
   .hist-empty { font-size: 13px; color: #999; padding: 8px 0; }
+  .inapp-tip { background: #fff7e0; border: 1.5px solid #f0c96a; border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.6; color: #7a5b00; margin-bottom: 16px; gap: 8px; align-items: flex-start; }
+  .inapp-tip button { width: auto; margin: 0; padding: 0 2px; background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer; color: #7a5b00; flex-shrink: 0; }
 </style>
 </head>
 <body>
+  <div id="inappTip" class="inapp-tip" style="display:none">
+    <span id="inappTipText"></span>
+    <button id="inappTipClose" aria-label="关闭">×</button>
+  </div>
   <h1>📚 铁柱笔记 · 小说下载</h1>
   <p class="sub">番茄小说短篇 · 粘贴分享链接 → 下载全文 txt</p>
 
@@ -63,6 +69,17 @@
 const WORKER_URL = 'https://tiezhu-novel.xianmei2022.workers.dev/';
 
 const $ = (id) => document.getElementById(id);
+
+// QQ/微信内置浏览器存不了文件，提示去系统浏览器打开
+(function () {
+  const ua = navigator.userAgent || '';
+  const app = /MicroMessenger/i.test(ua) ? '微信' : (/QQ\/|MQQBrowser/i.test(ua) ? 'QQ' : '');
+  if (!app) return;
+  const tip = $('inappTip');
+  $('inappTipText').textContent = '检测到你在' + app + '里打开：' + app + '内置浏览器存不了文件，下载会卡住。请点右上角 ···，选“在 Safari 中打开”（或“在浏览器打开”），再点下载就正常了。';
+  tip.style.display = 'flex';
+  $('inappTipClose').addEventListener('click', () => { tip.style.display = 'none'; });
+})();
 
 // 下载记录：存本机浏览器，按天分组
 function loadHist() {
