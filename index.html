@@ -15,6 +15,10 @@
   input[type=url]:focus { border-color: #222; }
   button { width: 100%; margin-top: 12px; padding: 13px; font-size: 16px; font-weight: 600; color: #fff; background: #222; border: none; border-radius: 8px; cursor: pointer; }
   button:disabled { background: #aaa; cursor: wait; }
+  .row { display: flex; gap: 10px; margin-top: 12px; }
+  .row button { width: auto; margin-top: 0; }
+  .btn-paste { flex: 1; }
+  .btn-clear { flex: 0 0 auto; padding: 13px 18px; background: #eee; color: #555; }
   #status { margin-top: 12px; font-size: 14px; line-height: 1.6; color: #555; white-space: pre-wrap; word-break: break-all; }
   #status.ok { color: #1a7f37; }
   #status.err { color: #c0392b; }
@@ -47,9 +51,13 @@
   <div class="card">
     <label for="link">分享链接</label>
     <input id="link" type="url" placeholder="粘贴分享链接，带推荐语也没关系，会自动识别…" autocomplete="off">
+    <div class="row">
+      <button id="paste" class="btn-paste" type="button">📋 粘贴并下载</button>
+      <button id="clear" class="btn-clear" type="button">✕ 清除</button>
+    </div>
     <button id="dl">下载全文</button>
     <div id="status"></div>
-    <p class="hint">粘贴链接或带链接的一段话都行，会自动识别链接；几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
+    <p class="hint">点「粘贴并下载」直接读剪贴板开始下载，不用点输入框；也可以手动粘贴链接或带链接的一段话，会自动识别。几秒出全文，自动存为「小说名_作者名.txt」。纯下载，不用登录、不用密码。</p>
   </div>
 
   <div class="card">
@@ -157,6 +165,37 @@ $('link').addEventListener('input', () => {
   const v = $('link').value;
   const u = extractLink(v);
   if (u && u !== v.trim()) $('link').value = u;
+});
+
+// 粘贴键：读剪贴板 → 填进输入框 → 直接开始下载，不用点输入框
+$('paste').addEventListener('click', async () => {
+  let text = '';
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      setStatus('当前浏览器不支持一键粘贴，请点输入框手动粘贴。', 'err');
+      $('link').focus();
+      return;
+    }
+    text = await navigator.clipboard.readText();
+  } catch (e) {
+    setStatus('没拿到剪贴板权限，请点输入框手动粘贴（或在浏览器设置里允许剪贴板访问）。', 'err');
+    $('link').focus();
+    return;
+  }
+  const link = extractLink((text || '').trim());
+  if (!link) {
+    setStatus('剪贴板里没有番茄分享链接，先去番茄 App 复制一个。', 'err');
+    return;
+  }
+  $('link').value = link;
+  $('dl').click();
+});
+
+// 清除键：清空输入框和提示
+$('clear').addEventListener('click', () => {
+  $('link').value = '';
+  setStatus('', '');
+  $('link').focus();
 });
 
 $('dl').addEventListener('click', async () => {

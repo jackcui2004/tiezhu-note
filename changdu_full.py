@@ -21,6 +21,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
       "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
@@ -66,6 +67,50 @@ def fetch_detail(book_id: str) -> dict:
     return payload["data"]
 
 
+def fetch_book_page(relate_book_id: str) -> dict | None:
+    # 抓书页 fanqienovel.com/page/{book_id}，取书本级字段
+    # wordNumber / readCount / lastPublishTime / abstract
+    # 拿不到（书已删 / 无关联书）返回 None，走帖子级回退
+    url = "https://fanqienovel.com/page/" + relate_book_id
+    try:
+        _, body = http_get(url, timeout=20)
+        page = body.decode("utf-8", errors="replace")
+    except Exception:
+        return None
+
+    def _num(pat):
+        m = re.search(pat, page)
+        return int(m.group(1)) if m else None
+
+    abstract = None
+    m = re.search(r'"abstract":"((?:[^"\\]|\\.)*)"', page)
+    if m:
+        try:
+            abstract = json.loads('"' + m.group(1) + '"')
+        except Exception:
+            abstract = m.group(1)
+    return {
+        "word_number": _num(r'"wordNumber":(\d+)'),
+        "read_count": _num(r'"readCount":(\d+)'),
+        "last_publish_time": _num(r'"lastPublishTime":"(\d+)"'),
+        "abstract": abstract,
+    }
+
+
+def format_word_count(n: int) -> str:
+    # >= 1 万字显示 X.X 万字，否则 N 字
+    if n >= 10000:
+        s = f"{n / 10000:.1f}".rstrip("0").rstrip(".")
+        return s + " 万字"
+    return str(n) + " 字"
+
+
+def format_update_time(ts: int) -> str:
+    # Unix 秒 -> 北京时间 YYYY-MM-DD HH:MM
+    cst = timezone(timedelta(hours=8))
+    return datetime.fromtimestamp(ts, tz=cst).strftime("%Y-%m-%d %H:%M")
+
+
 def detail_to_paras(data: dict) -> list[str]:
     """把详情 JSON 的 skeleton HTML 转段落列表（每段一行，已去 HTML 标签）。"""
     content = json.loads(data["content"])
@@ -104,34 +149,57 @@ def count_chapters(text: str) -> int:
     return len(heads) if heads else 1
 
 
-def build_full_text(data: dict, book_id: str) -> str:
-    """按铁柱笔记格式组装全文：书籍信息 + 简介 + 分隔线 + 第一章 + 正文。"""
+def build_full_text(data: dict, book_id: str, book_page: dict | None = None) -> str:
+    # 按铁柱笔记格式组装全文：书籍信息 + 简介 + 分隔线 + 正文
+    # 有书页数据（关联书未删）用书本级字段：relate_book_id / wordNumber /
+    # readCount / lastPublishTime / abstract；否则用帖子级字段回退
     title = (data.get("title") or f"book_{book_id}").strip()
     author = ((data.get("user_info") or {}).get("user_name") or "").strip()
-    total_words = data.get("total_word_num") or 0
-    show_pv = data.get("show_pv") or 0
+    relate_id = (data.get("relate_book_id") or "").strip()
+    display_id = relate_id if relate_id else book_id
+    if book_page and book_page.get("word_number"):
+        total_words = book_page["word_number"]
+    else:
+        total_words = data.get("total_word_num") or 0
+    if book_page and book_page.get("read_count") is not None:
+        read_count = book_page["read_count"]
+    else:
+        read_count = data.get("show_pv") or 0
+    update_str = ""
+    if book_page and book_page.get("last_publish_time"):
+        update_str = format_update_time(book_page["last_publish_time"])
     paras = detail_to_paras(data)
     body = "\n\n".join(paras)
     chapter_count = count_chapters(body)
-    # 短篇单章（正文里没有“第X章”标题）前面补一个“第一章”
-    has_head = any(re.fullmatch(r"第[一二三四五六七八九十百千\d]+章", p) for p in paras)
-    chapter_head = "" if has_head else "第一章\n\n"
-    header = "\n".join([
+    header_lines = [
         "书籍信息",
         "",
         "书名：" + title,
         "作者：" + author,
         # 这类短篇是一次性发完的单篇，接口不给连载状态，默认已完结
         "连载状态：已完结",
-        "字数：" + str(total_words) + " 字",
+        "字数：" + format_word_count(total_words),
         "章节数：" + str(chapter_count) + " 章",
-        "书籍 ID：" + book_id,
-        "阅读量：" + str(show_pv),
-        "",
-        "【简介】",
-    ])
-    synopsis = build_synopsis(paras, data.get("truncate_word_num") or 0)
-    return header + "\n" + synopsis + "\n\n" + SEP_LINE + "\n\n" + chapter_head + body
+        "书籍 ID：" + display_id,
+        "阅读量：" + str(read_count),
+    ]
+    if update_str:
+        header_lines.append("最后更新时间：" + update_str)
+    header_lines += ["", "【简介】"]
+    header = "\n".join(header_lines)
+    if book_page and book_page.get("abstract"):
+        synopsis = book_page["abstract"]
+    else:
+        synopsis = build_synopsis(paras, data.get("truncate_word_num") or 0)
+    if update_str:
+        # 书本级：书名 + 章节更新时间 + 正文
+        tail = title + "\n\n章节更新时间：" + update_str + "\n\n" + body
+    else:
+        # 帖子级回退：短篇单章前面补一个“第一章”
+        has_head = any(re.fullmatch(r"第[一二三四五六七八九十百千\d]+章", p) for p in paras)
+        chapter_head = "" if has_head else "第一章\n\n"
+        tail = chapter_head + body
+    return header + "\n" + synopsis + "\n\n" + SEP_LINE + "\n\n" + tail + "\n\n"
 
 
 def safe_filename(name: str) -> str:
@@ -162,8 +230,12 @@ def main(argv: list[str]) -> int:
         title = (data.get("title") or f"book_{book_id}").strip()
         author = ((data.get("user_info") or {}).get("user_name") or "").strip()
         total_words = data.get("total_word_num") or 0
+        relate_id = (data.get("relate_book_id") or "").strip()
+        book_page = fetch_book_page(relate_id) if relate_id else None
+        if book_page and book_page.get("word_number"):
+            total_words = book_page["word_number"]
 
-        text = build_full_text(data, book_id)
+        text = build_full_text(data, book_id, book_page)
         if not text:
             print("接口有返回，但正文为空。")
             return 1
