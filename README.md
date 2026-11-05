@@ -2,6 +2,18 @@
 
 番茄小说短篇全文存档。给链接 → 提 book_id → 接口拿全文 → 存 txt。
 
+## 下载脚本（自己用）
+
+👉 [点这里下载 changdu_full.py](https://github.com/jackcui2004/tiezhu-note/raw/main/changdu_full.py)
+
+下载后在 Mac 终端里跑：
+
+```
+python3 changdu_full.py https://changdunovel.com/t/5YhKq0w46-8/
+```
+
+几秒出一篇，全文自动存成 `小说名_作者名.txt`。纯 HTTP，不用登录、不用密码。
+
 ## 目录
 
 | 编号 | 小说 | 作者 | 字数 | 全文 |
@@ -14,7 +26,3 @@
 发分享链接给助手，几秒就下载好推上来，编号顺延（3、4、5……）。
 
 文件命名：`小说名_作者名.txt`。
-
-## 工具
-
-- `changdu_full.py`：分享链接 → 全文 txt，纯 HTTP，几秒一篇，不用登录、不用密码。
