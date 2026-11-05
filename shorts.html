@@ -213,8 +213,10 @@ function renderFeed(data) {
   $('feed').innerHTML = items.map((it, idx) => {
     const topics = it.topics || [];
     const m = it.metrics || {};
-    const hot = topics[0] || '';
-    const cat = topics[1] || currentTag;
+    // topics[0] 不一定是好评数（有的故事没有），只有含 好评/力荐/热搜/推荐 才当作热度徽标，否则都当分类
+    const hot = topics.find(t => /好评|力荐|热搜|推荐/.test(t)) || '';
+    const cats = topics.filter(t => t !== hot);
+    const cat = cats[0] || currentTag;
     const metaParts = [];
     if (hot) metaParts.push(`<span class="hot">${escHtml(hot)}</span>`);
     metaParts.push(escHtml(cat));
