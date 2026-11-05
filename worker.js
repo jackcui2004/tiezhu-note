@@ -20,6 +20,9 @@ export default {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      // 关键：没有这一行，浏览器里 fetch 读不到 X-Title 等自定义头，
+      // 页面会显示书名/作者/字数全空、文件名 fallback 成「小说.txt」
+      'Access-Control-Expose-Headers': 'Content-Disposition, X-Title, X-Author, X-Book-Id, X-Words',
     };
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: cors });
