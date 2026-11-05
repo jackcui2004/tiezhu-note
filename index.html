@@ -107,10 +107,11 @@ function saveHist(h) { localStorage.setItem('tz_hist', JSON.stringify(h.slice(0,
 function dayKey(ts) { const d = new Date(ts); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
 function dayLabel(ts) {
   const d = new Date(ts), now = new Date();
-  if (dayKey(ts) === dayKey(now.getTime())) return '今天';
+  const full = d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  if (dayKey(ts) === dayKey(now.getTime())) return full + ' 今天';
   const y = new Date(now); y.setDate(y.getDate() - 1);
-  if (dayKey(ts) === dayKey(y.getTime())) return '昨天';
-  return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  if (dayKey(ts) === dayKey(y.getTime())) return full + ' 昨天';
+  return full;
 }
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
