@@ -15,7 +15,8 @@ function unescapeHtml(s) {
 }
 
 function safeFilename(name) {
-  return name.replace(/[\\/:*?"<>|]/g, '_').trim();
+  // 顺带把「标题末尾句号 + 下划线」压成一个下划线，避免出现「离婚了._作者.txt」这种文件名
+  return name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.+_/g, '_').replace(/\.+(\.[^.]+)$/, '$1').trim();
 }
 
 function jsonResp(obj, status, cors) {
