@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄短篇 · 铁柱笔记</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f2f2f2; color: #222; padding: 12px 12px 60px; max-width: 640px; margin: 0 auto; }
+  a { color: inherit; }
+  .topbar { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; }
+  .topbar input { flex: 1; padding: 10px 12px; font-size: 15px; border: none; border-radius: 8px; outline: none; background: #fff; }
+  .topbar button { padding: 10px 14px; font-size: 15px; font-weight: 600; border: none; border-radius: 8px; background: #fff; cursor: pointer; white-space: nowrap; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; padding: 7px 14px; font-size: 14px; background: #fff; border-radius: 8px; border: none; cursor: pointer; color: #333; }
+  .chip.active { background: #ffeee3; color: #e8590c; font-weight: 700; }
+  .feed-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 8px; }
+  .feed-head h1 { font-size: 18px; }
+  .feed-head .upd { font-size: 12px; color: #999; }
+  .card { background: #fff; border-radius: 12px; padding: 16px 16px 12px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .card h2 { font-size: 18px; line-height: 1.45; margin-bottom: 8px; }
+  .excerpt { font-size: 15px; line-height: 1.75; color: #555; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .excerpt.open { display: block; }
+  .more { color: #2b7cd3; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .meta { font-size: 13px; color: #999; margin-top: 10px; line-height: 1.6; }
+  .meta .hot { color: #d97b29; }
+  .meta2 { font-size: 12px; color: #bbb; margin-top: 2px; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+  .actions .dl { flex: 1; padding: 10px; font-size: 15px; font-weight: 600; color: #fff; background: #222; border: none; border-radius: 8px; cursor: pointer; }
+  .actions .dl:disabled { background: #aaa; cursor: wait; }
+  .actions .read { flex: 1; padding: 10px; font-size: 15px; font-weight: 600; color: #222; background: #f2f2f2; border: none; border-radius: 8px; cursor: pointer; text-align: center; text-decoration: none; }
+  #status { font-size: 14px; line-height: 1.6; color: #555; white-space: pre-wrap; word-break: break-all; margin-bottom: 10px; }
+  #status.ok { color: #1a7f37; }
+  #status.err { color: #c0392b; }
+  .state { text-align: center; color: #999; font-size: 14px; padding: 40px 0; line-height: 1.8; }
+  .state button { margin-top: 12px; padding: 10px 22px; font-size: 15px; border: none; border-radius: 8px; background: #222; color: #fff; cursor: pointer; }
+  .foot { text-align: center; font-size: 12px; color: #aaa; margin-top: 20px; line-height: 1.8; }
+  .foot a { color: #888; }
+  .inapp-tip { background: #fff7e0; border: 1.5px solid #f0c96a; border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.6; color: #7a5b00; margin-bottom: 12px; display: flex; gap: 8px; align-items: flex-start; }
+  .inapp-tip button { width: auto; margin: 0; padding: 0 2px; background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer; color: #7a5b00; flex-shrink: 0; }
+  /* 分类全选弹层 */
+  .sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 10; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 16px 16px 0 0; max-height: 78vh; display: flex; flex-direction: column; z-index: 11; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 8px; font-size: 17px; font-weight: 700; }
+  .sheet-head button { border: none; background: none; font-size: 18px; cursor: pointer; color: #888; }
+  .sheet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 16px 12px; overflow-y: auto; }
+  .sheet-grid button { padding: 11px 4px; font-size: 15px; background: #f4f4f4; border: none; border-radius: 8px; cursor: pointer; }
+  .sheet-grid button.active { background: #ffeee3; color: #e8590c; font-weight: 700; }
+  .sheet-foot { display: flex; gap: 12px; padding: 12px 16px 20px; border-top: 1px solid #eee; }
+  .sheet-foot .clear { flex: 1; padding: 13px; font-size: 16px; color: #888; background: none; border: none; cursor: pointer; }
+  .sheet-foot .ok { flex: 2; padding: 13px; font-size: 16px; font-weight: 600; color: #fff; background: #ff6a00; border: none; border-radius: 24px; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div id="inappTip" class="inapp-tip" style="display:none">
+    <span id="inappTipText"></span>
+    <button id="inappTipClose" aria-label="关闭">×</button>
+  </div>
+
+  <div class="topbar">
+    <input id="tagSearch" type="search" placeholder="搜分类，如：婚姻家庭" autocomplete="off">
+    <button id="allTagsBtn">☰ 分类</button>
+  </div>
+  <div class="chips" id="chips"></div>
+
+  <div class="feed-head">
+    <h1 id="feedTitle">正在加载…</h1>
+    <span class="upd" id="upd"></span>
+  </div>
+  <div id="status"></div>
+  <div id="feed"></div>
+
+  <p class="foot">数据来自番茄短篇推荐流，每分类 10 篇，每小时更新。<br>
+  <a href="./">← 回到小说下载页</a></p>
+
+  <div class="sheet-mask" id="sheetMask">
+    <div class="sheet">
+      <div class="sheet-head"><span>筛选分类</span><button id="sheetClose">✕</button></div>
+      <div class="sheet-grid" id="sheetGrid"></div>
+      <div class="sheet-foot">
+        <button class="clear" id="sheetClear">清空</button>
+        <button class="ok" id="sheetOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ★ 与下载页同一个 Worker，部署新版 worker.js 后生效
+const WORKER_URL = 'https://tiezhu-novel.xianmei2022.workers.dev/';
+
+const TAGS = ['爽文', '打脸逆袭', '现代', '男生生活', '婚姻家庭', '女生生活', '虐文', '现实情感', '救赎', '玄幻仙侠', '霸总', '职场', '先虐后甜', '追妻火葬场', '现言甜宠', '励志', '系统', '校园', '豪门世家', '男生情感', '古代言情', '架空', '青春虐恋', '惊悚', '推理', '复仇', '暗恋', '金手指', '女配', '沙雕搞笑', '豪门总裁', '悬疑灵异', '纯爱', '宫斗宅斗', '婆媳', '虐心婚恋', '先婚后爱', '替身', '年代', '破镜重圆', '真假千金', '规则怪谈', '追妻', '直播', '病娇', '萌宝', '无限流', '科幻', '追夫火葬场', '男频衍生', '女性成长', '历史古代', '犯罪', '娱乐圈', '科幻末世', '游戏动漫', '万人迷', '末日求生', '悬疑', '搞笑轻松', '姐弟恋', '赘婿', '女频衍生', '同人', '养崽文', '团宠', '都市日常', '都市异能', '现实生活', '民国', '影视', '奇妙物语', '星际', '反转', '玄幻', '校霸', '狼人', '追夫', '升级流', '特种兵', '明星', '神医', '虐恋情深', '历史武侠', '古言虐恋', '外卖', '古言甜宠', '幻想言情', '奶爸', '历史', '都市脑洞', '武侠', '鉴宝', '热血', '现言复仇', '权谋', '基建', '十日衍生', '仕途'];
+
+const $ = (id) => document.getElementById(id);
+let currentTag = localStorage.getItem('tz_shorts_tag') || '爽文';
+let currentData = null;
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmtNum(n) {
+  n = Number(n) || 0;
+  if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万';
+  return String(n);
+}
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+// QQ/微信内置浏览器存不了文件，提示去系统浏览器打开
+(function () {
+  const ua = navigator.userAgent || '';
+  const app = /MicroMessenger/i.test(ua) ? '微信' : (/QQ\/|MQQBrowser/i.test(ua) ? 'QQ' : '');
+  if (!app) return;
+  const tip = $('inappTip');
+  $('inappTipText').textContent = '检测到你在' + app + '里打开：' + app + '内置浏览器存不了文件，下载会卡住。请点右上角 ···，选“在 Safari 中打开”（或“在浏览器打开”），再点下载就正常了。';
+  tip.style.display = 'flex';
+  $('inappTipClose').addEventListener('click', () => { tip.style.display = 'none'; });
+})();
+
+// 下载记录：和下载页共用同一份本机记录
+function loadHist() { try { return JSON.parse(localStorage.getItem('tz_hist') || '[]'); } catch (e) { return []; } }
+function saveHist(h) { localStorage.setItem('tz_hist', JSON.stringify(h.slice(0, 200))); }
+function addHist(r) { const h = loadHist(); h.unshift(r); saveHist(h); }
+
+function setStatus(msg, cls) {
+  const el = $('status');
+  el.textContent = msg || '';
+  el.className = cls || '';
+}
+
+function filenameFromHeaders(res, fallback) {
+  const cd = res.headers.get('Content-Disposition') || '';
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+  const m2 = cd.match(/filename="?([^";]+)"?/i);
+  if (m2) return m2[1];
+  return fallback;
+}
+
+async function downloadById(btn, id) {
+  if (!WORKER_URL) { setStatus('中转服务还没配好（WORKER_URL 为空）。', 'err'); return; }
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '下载中…';
+  setStatus('正在拿全文，请稍等…');
+  try {
+    const res = await fetch(WORKER_URL + '?book_id=' + encodeURIComponent(id));
+    if (!res.ok) {
+      let msg = '下载失败（' + res.status + '）';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    let title = decodeURIComponent(res.headers.get('X-Title') || '');
+    let author = decodeURIComponent(res.headers.get('X-Author') || '');
+    let words = res.headers.get('X-Words') || '';
+    const name = filenameFromHeaders(res, (title || '小说') + (author ? '_' + author : '') + '.txt');
+    if (!title || !author) {
+      const base = name.replace(/\.txt$/i, '');
+      const i = base.lastIndexOf('_');
+      if (i > 0) { if (!title) title = base.slice(0, i); if (!author) author = base.slice(i + 1); }
+    }
+    if (!words) { try { words = String((await blob.text()).length); } catch (e) {} }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    setStatus(`✅ 已下载：《${title}》 作者：${author}  共 ${words} 字\n文件：${name}`, 'ok');
+    if (title) addHist({ t: title, a: author, w: words, ts: Date.now() });
+  } catch (e) {
+    setStatus('❌ ' + (e.message || '下载失败，请重试。'), 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+function renderChips(filter) {
+  const list = TAGS.filter(t => !filter || t.indexOf(filter) !== -1);
+  $('chips').innerHTML = list.map(t =>
+    `<button class="chip${t === currentTag ? ' active' : ''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
+  ).join('') || '<span style="color:#999;font-size:13px;padding:7px">没找到这个分类，换个词试试。</span>';
+  $('chips').querySelectorAll('.chip').forEach(b => {
+    b.addEventListener('click', () => selectTag(b.dataset.tag));
+  });
+}
+
+function renderSheet() {
+  $('sheetGrid').innerHTML = TAGS.map(t =>
+    `<button class="${t === currentTag ? 'active' : ''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
+  ).join('');
+  $('sheetGrid').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { closeSheet(); selectTag(b.dataset.tag); });
+  });
+}
+function openSheet() { renderSheet(); $('sheetMask').style.display = 'block'; }
+function closeSheet() { $('sheetMask').style.display = 'none'; }
+
+function renderFeed(data) {
+  $('feedTitle').textContent = data.tag || currentTag;
+  $('upd').textContent = '共 ' + (data.count || (data.items || []).length) + ' 篇 · ' + fmtTime(data.updated_at || data.fetched_at) + ' 更新';
+  const items = data.items || [];
+  if (!items.length) {
+    $('feed').innerHTML = '<div class="state">这个分类暂时没有内容，<br>换个分类看看。</div>';
+    return;
+  }
+  $('feed').innerHTML = items.map((it, idx) => {
+    const topics = it.topics || [];
+    const m = it.metrics || {};
+    const hot = topics[0] || '';
+    const cat = topics[1] || currentTag;
+    const metaParts = [];
+    if (hot) metaParts.push(`<span class="hot">${escHtml(hot)}</span>`);
+    metaParts.push(escHtml(cat));
+    if (it.reading_count) metaParts.push(escHtml(it.reading_count));
+    if (m.likes != null) metaParts.push(fmtNum(m.likes) + '赞');
+    const meta2 = [];
+    if (it.word_count) meta2.push(fmtNum(it.word_count) + '字');
+    if (it.reading_minutes) meta2.push('约 ' + it.reading_minutes + ' 分钟读完');
+    if (m.comments != null) meta2.push(fmtNum(m.comments) + ' 评论');
+    return `<article class="card">
+      <h2>${escHtml(it.title || '未命名短篇')}</h2>
+      <p class="excerpt" id="ex-${idx}">${escHtml(it.excerpt || '')}</p>
+      <div style="text-align:right;margin-top:4px"><span class="more" data-ex="ex-${idx}">更多</span></div>
+      <div class="meta">${metaParts.join(' · ')}</div>
+      ${meta2.length ? `<div class="meta2">${meta2.join(' · ')}</div>` : ''}
+      <div class="actions">
+        <button class="dl" data-id="${escHtml(it.id)}">下载全文</button>
+        ${it.source_url ? `<a class="read" href="${escHtml(it.source_url)}" target="_blank" rel="noopener">在线看 ↗</a>` : ''}
+      </div>
+    </article>`;
+  }).join('');
+  $('feed').querySelectorAll('.more').forEach(el => {
+    el.addEventListener('click', () => {
+      const p = $(el.dataset.ex);
+      const open = p.classList.toggle('open');
+      el.textContent = open ? '收起' : '更多';
+    });
+  });
+  $('feed').querySelectorAll('.dl').forEach(btn => {
+    btn.addEventListener('click', () => downloadById(btn, btn.dataset.id));
+  });
+}
+
+async function loadTag(tag) {
+  currentTag = tag;
+  localStorage.setItem('tz_shorts_tag', tag);
+  renderChips($('tagSearch').value.trim());
+  $('feedTitle').textContent = tag;
+  $('feed').innerHTML = '<div class="state">正在加载…</div>';
+  setStatus('');
+  try {
+    const res = await fetch(WORKER_URL + 'shorts?tag=' + encodeURIComponent(tag));
+    if (!res.ok) {
+      let msg = '加载失败（' + res.status + '）';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    currentData = data;
+    renderFeed(data);
+  } catch (e) {
+    $('feed').innerHTML = `<div class="state">❌ ${escHtml(e.message || '加载失败')}<br><button id="retryBtn">重试</button></div>`;
+    const rb = $('retryBtn');
+    if (rb) rb.addEventListener('click', () => loadTag(currentTag));
+  }
+}
+
+function selectTag(tag) { loadTag(tag); }
+
+$('tagSearch').addEventListener('input', () => renderChips($('tagSearch').value.trim()));
+$('allTagsBtn').addEventListener('click', openSheet);
+$('sheetClose').addEventListener('click', closeSheet);
+$('sheetMask').addEventListener('click', (e) => { if (e.target === $('sheetMask')) closeSheet(); });
+$('sheetOk').addEventListener('click', closeSheet);
+$('sheetClear').addEventListener('click', () => { $('tagSearch').value = ''; renderChips(''); });
+
+renderChips('');
+loadTag(currentTag);
+</script>
+</body>
+</html>
